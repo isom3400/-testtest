@@ -1,137 +1,59 @@
-import os
 import streamlit as st
-from huggingface_hub import InferenceClient
+from openai import OpenAI
 
-
-# ---------------------------------------------------------
-# Page configuration
-# ---------------------------------------------------------
-st.set_page_config(
-    page_title="Hugging Face Chatbot",
-    page_icon="🤖",
-    layout="centered"
-)
-
-st.title("🤖 Hugging Face Chatbot")
-st.caption("A simple chatbot built with Streamlit and Hugging Face")
-
-
-# ---------------------------------------------------------
-# Hugging Face configuration
-# ---------------------------------------------------------
-# Store HF_TOKEN in Streamlit Cloud > App settings > Secrets
-HF_TOKEN = st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN"))
-
-if not HF_TOKEN:
-    st.error(
-        "Hugging Face token not found. "
-        "Please add HF_TOKEN to your Streamlit secrets."
+# 1. Initialize the HKUST Azure OpenAI Client
+# (We put it in a function so it initializes cleanly)
+def get_openai_client():
+    apikey = "6b81055fda7247c5a51e7d3789be35b3" # Replace with your actual student key
+    custom_headers = {"api-key": apikey}
+    
+    return OpenAI(
+        base_url="https://azure-api.net",
+        api_key=apikey,
+        default_headers=custom_headers,
     )
-    st.stop()
 
+client = get_openai_client()
+model_name = "gpt-4o-mini"
 
-# Change this if you want to use another compatible model
-MODEL = "Qwen/Qwen2.5-7B-Instruct"
-
-client = InferenceClient(
-    model=MODEL,
-    token=HF_TOKEN
-)
-
-
-# ---------------------------------------------------------
-# Initialize conversation
-# ---------------------------------------------------------
+# 2. Initialize Chat History
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {
-            "role": "assistant",
-            "content": "Hello! How can I help you today?"
-        }
+        {"role": "system", "content": "You are a helpful assistant."}
     ]
 
+# 3. App UI Layout
+st.title("🤖 HKUST AI Chatbot")
+st.write("Powered by gpt-4o-mini through the campus API gateway!")
 
-# ---------------------------------------------------------
-# Show chat history
-# ---------------------------------------------------------
+# Display past chat messages from history (ignoring the hidden system message)
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+    if message["role"] != "system":
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-
-# ---------------------------------------------------------
-# User input
-# ---------------------------------------------------------
-if prompt := st.chat_input("Type your message here..."):
-
-    # Save and display user's message
-    st.session_state.messages.append(
-        {
-            "role": "user",
-            "content": prompt
-        }
-    )
-
+# 4. Accept User Input
+if user_input := st.chat_input("Ask me anything about ISOM3400..."):
+    # Display user message instantly
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(user_input)
+    
+    # Add user message to history
+    st.session_state.messages.append({"role": "user", "content": user_input})
 
-
-    # -----------------------------------------------------
-    # Generate response
-    # -----------------------------------------------------
+    # 5. Generate AI Response via Azure Gateway
     with st.chat_message("assistant"):
-
-        try:
-
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a helpful AI assistant. "
-                        "Answer clearly and concisely."
-                    )
-                }
-            ]
-
-            messages.extend(st.session_state.messages)
-
-            response = client.chat_completion(
-                messages=messages,
-                max_tokens=500,
-                temperature=0.7
+        with st.spinner("Thinking..."):
+            # Call the OpenAI API using your precise configuration layout
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=st.session_state.messages
             )
+            
+            # Extract the text answer smoothly
+            ai_response = response.choices[0].message.content
+            st.markdown(ai_response)
+            
+    # Add assistant response to chat history
+    st.session_state.messages.append({"role": "assistant", "content": ai_response})
 
-            answer = response.choices[0].message.content
-
-            st.markdown(answer)
-
-            st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content": answer
-                }
-            )
-
-        except Exception as e:
-            st.error(f"Error communicating with Hugging Face: {e}")
-
-
-# ---------------------------------------------------------
-# Sidebar
-# ---------------------------------------------------------
-with st.sidebar:
-
-    st.header("Chatbot Settings")
-
-    st.write("**Model**")
-    st.code(MODEL)
-
-    if st.button("🗑️ Clear conversation"):
-        st.session_state.messages = [
-            {
-                "role": "assistant",
-                "content": "Hello! How can I help you today?"
-            }
-        ]
-
-        st.rerun()
