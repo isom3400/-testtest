@@ -1,24 +1,37 @@
 import streamlit as st
+from transformers import pipeline
+import pandas as pd
 
-# Title
-st.title("Basic Web Calculator")
+# 1. Load the Hugging Face emotion classifier
+# This downloads a model trained to detect emotions (joy, sadness, anger, fear, etc.)
+@st.cache_resource  # Keeps the model in memory so it doesn't reload every time
+def load_model():
+    return pipeline("text-classification", model="bhadresh-savani/distilbert-base-uncased-emotion", top_k=None)
 
-# Input fields
-num1 = st.number_input("Enter first number", value=0.0)
-num2 = st.number_input("Enter second number", value=0.0)
+classifier = load_model()
 
-# Operation selection
-operation = st.selectbox("Choose operation", ["Add", "Subtract", "Multiply", "Divide"])
+# 2. App UI
+st.title("😊 Happiness & Emotion Detector")
+st.write("Type how your day went, and the AI will analyze your emotions!")
 
-# Calculate
-if st.button("Calculate"):
-    if operation == "Add":
-        result = num1 + num2
-    elif operation == "Subtract":
-        result = num1 - num2
-    elif operation == "Multiply":
-        result = num1 * num2
-    elif operation == "Divide":
-        result = num1 / num2 if num2 != 0 else "Error: Division by zero"
+user_text = st.text_area("How are you feeling today?", "I had a wonderful day today and accomplished a lot!")
 
-    st.success(f"Result: {result}")
+if st.button("Analyze Emotion"):
+    if user_text.strip() == "":
+        st.warning("Please type something first!")
+    else:
+        # 3. Run the model
+        with st.spinner("Analyzing text..."):
+            results = classifier(user_text)[0]
+        
+        # 4. Process and display results
+        # Format the data for a nice Streamlit bar chart
+        emotions = [res['label'] for res in results]
+        scores = [res['score'] for res in results]
+        df = pd.DataFrame({"Score": scores}, index=emotions)
+        
+        # Find the dominant emotion
+        top_emotion = results[0]['label']
+        
+        st.success(f"Primary Emotion Detected: **{top_emotion.capitalize()}**")
+        st.bar_chart(df)
