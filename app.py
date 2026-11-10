@@ -4,7 +4,6 @@ from transformers import pipeline
 # 1. Load a standard text-generation model
 @st.cache_resource
 def load_chatbot():
-    # GPT-2 or a tiny equivalent doesn't need rigid templates; it just continues text
     return pipeline("text-generation", model="gpt2")
 
 chatbot = load_chatbot()
@@ -35,7 +34,7 @@ if user_input := st.chat_input("Say something to the AI..."):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             
-            # --- THE FIX: Convert chat history list into a single flat string prompt ---
+            # Convert chat history list into a single flat script prompt
             chat_prompt = ""
             for msg in st.session_state.messages:
                 if msg["role"] == "user":
@@ -43,25 +42,29 @@ if user_input := st.chat_input("Say something to the AI..."):
                 else:
                     chat_prompt += f"AI: {msg['content']}\n"
             
-            # Append "AI:" at the very end to prompt the model to answer as the AI
+            # Append "AI:" to prompt the model to talk next
             chat_prompt += "AI:"
             
-            # Run the model using the raw string prompt
-            # clean_up_tokenization_spaces=True avoids weird spacing errors
-            outputs = chatbot(chat_prompt, max_new_tokens=40, pad_token_id=50256)
+            # Run the model with creative sampling turned on
+            outputs = chatbot(
+                chat_prompt, 
+                max_new_tokens=50, 
+                pad_token_id=50256,
+                do_sample=True,      # Crucial: stops the model from repeating the same text
+                temperature=0.8,     # Adds randomness/creativity
+                top_k=50
+            )
             
-            # Extract the raw generated text
+            # Extract only the newly generated text
             full_generated_text = outputs[0]["generated_text"]
-            
-            # Cut off the historical prompt so we ONLY get the brand new sentence after "AI:"
             new_response = full_generated_text[len(chat_prompt):].strip()
             
-            # Clean up the output to stop it from writing the next "User:" turn itself
+            # Clean up: stop the AI if it tries to generate the next "User:" line itself
             ai_response = new_response.split("User:")[0].split("AI:")[0].strip()
             
-            # Fallback if the model outputs nothing
+            # Fallback if the cleaning removed everything
             if not ai_response:
-                ai_response = "I am processing that!"
+                ai_response = "I see! Tell me more."
                 
             st.markdown(ai_response)
             
