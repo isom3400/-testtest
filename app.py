@@ -1,43 +1,54 @@
-import streamlit as st
-from groq import Groq
+from PIL import Image
+from transformers import pipeline
 
-# Initialize a free Groq client
-# Students can grab a free API key instantly at https://groq.com
-def get_groq_client():
-    return Groq(api_key="YOUR_FREE_GROQ_API_KEY")
-
-client = get_groq_client()
-model_name = "llama3-8b-8192"  # Fast, free, and smart conversational model
-
-# Initialize Chat History
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# App UI Layout
-st.title("🤖 Free Global AI Chatbot")
-st.write("This version bypasses campus firewall issues to work seamlessly in the cloud!")
-
-# Display past chat messages
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# Accept User Input
-if user_input := st.chat_input("Ask me anything..."):
-    with st.chat_message("user"):
-        st.markdown(user_input)
+def classify_happiness(image_path: str):
+    """
+    Loads an image, runs it through a Hugging Face ViT model fine-tuned 
+    for emotion recognition, and checks for 'happy' or 'happiness'.
+    """
+    print("Loading emotion classification model...")
+    # Using a Vision Transformer (ViT) fine-tuned on facial expressions / emotions
+    classifier = pipeline(
+        task="image-classification", 
+        model="dima806/facial_emotions_image_detection"
+    )
     
-    st.session_state.messages.append({"role": "user", "content": user_input})
+    print(head_up := f"Analyzing image: {image_path}...")
+    try:
+        img = Image.open(image_path).convert("RGB")
+    except FileNotFoundError:
+        print(f"Error: The file '{image_path}' could not be found.")
+        return
+    except Exception as e:
+        print(f"Error loading image: {e}")
+        return
 
-    # Generate AI Response
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=st.session_state.messages
-            )
-            
-            ai_response = response.choices[0].message.content
-            st.markdown(ai_response)
-            
-    st.session_state.messages.append({"role": "assistant", "content": ai_response})
+    # Run inference
+    results = classifier(img)
+    
+    print("\n--- Emotion Classification Results ---")
+    happy_detected = False
+    
+    for prediction in results:
+        label = prediction['label'].lower()
+        score = prediction['score']
+        print(f"Label: {prediction['label']:<15} Confidence: {score:.2%}")
+        
+        # Check if the primary detected emotion is happy
+        if 'happy' in label or 'happiness' in label:
+            if score > 0.5: # 50% threshold
+                happy_detected = True
+                happy_score = score
+
+    print("--------------------------------------")
+    if happy_detected:
+        print(f"✅ Outcome: The subject appears HAPPY (Confidence: {happy_score:.2%})")
+    else:
+        print("❌ Outcome: Happiness is not the dominant emotion detected.")
+
+if __name__ == "__main__":
+    # Replace with the path to your local image file
+    image_to_test = "happy_face.jpg" 
+    
+    classify_happiness(image_to_test)
+
