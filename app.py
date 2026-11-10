@@ -1,73 +1,137 @@
+import os
 import streamlit as st
-from transformers import pipeline
+from huggingface_hub import InferenceClient
 
-# 1. Load a standard text-generation model
-@st.cache_resource
-def load_chatbot():
-    return pipeline("text-generation", model="gpt2")
 
-chatbot = load_chatbot()
+# ---------------------------------------------------------
+# Page configuration
+# ---------------------------------------------------------
+st.set_page_config(
+    page_title="Hugging Face Chatbot",
+    page_icon="🤖",
+    layout="centered"
+)
 
-# 2. Initialize Chat History
+st.title("🤖 Hugging Face Chatbot")
+st.caption("A simple chatbot built with Streamlit and Hugging Face")
+
+
+# ---------------------------------------------------------
+# Hugging Face configuration
+# ---------------------------------------------------------
+# Store HF_TOKEN in Streamlit Cloud > App settings > Secrets
+HF_TOKEN = st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN"))
+
+if not HF_TOKEN:
+    st.error(
+        "Hugging Face token not found. "
+        "Please add HF_TOKEN to your Streamlit secrets."
+    )
+    st.stop()
+
+
+# Change this if you want to use another compatible model
+MODEL = "Qwen/Qwen2.5-7B-Instruct"
+
+client = InferenceClient(
+    model=MODEL,
+    token=HF_TOKEN
+)
+
+
+# ---------------------------------------------------------
+# Initialize conversation
+# ---------------------------------------------------------
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    st.session_state.messages = [
+        {
+            "role": "assistant",
+            "content": "Hello! How can I help you today?"
+        }
+    ]
 
-# 3. App UI Layout
-st.title("🤖 Your AI Companion")
-st.write("Talk to this open-source AI chatbot!")
 
-# Display past chat messages from history
+# ---------------------------------------------------------
+# Show chat history
+# ---------------------------------------------------------
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 4. Accept User Input
-if user_input := st.chat_input("Say something to the AI..."):
-    # Display user message
+
+# ---------------------------------------------------------
+# User input
+# ---------------------------------------------------------
+if prompt := st.chat_input("Type your message here..."):
+
+    # Save and display user's message
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": prompt
+        }
+    )
+
     with st.chat_message("user"):
-        st.markdown(user_input)
-    
-    # Add user message to history
-    st.session_state.messages.append({"role": "user", "content": user_input})
+        st.markdown(prompt)
 
-    # 5. Generate AI Response
+
+    # -----------------------------------------------------
+    # Generate response
+    # -----------------------------------------------------
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            
-            # Convert chat history list into a single flat script prompt
-            chat_prompt = ""
-            for msg in st.session_state.messages:
-                if msg["role"] == "user":
-                    chat_prompt += f"User: {msg['content']}\n"
-                else:
-                    chat_prompt += f"AI: {msg['content']}\n"
-            
-            # Append "AI:" to prompt the model to talk next
-            chat_prompt += "AI:"
-            
-            # Run the model with creative sampling turned on
-            outputs = chatbot(
-                chat_prompt, 
-                max_new_tokens=50, 
-                pad_token_id=50256,
-                do_sample=True,      # Crucial: stops the model from repeating the same text
-                temperature=0.8,     # Adds randomness/creativity
-                top_k=50
-            )
-            
-            # Extract only the newly generated text
-            full_generated_text = outputs[0]["generated_text"]
-            new_response = full_generated_text[len(chat_prompt):].strip()
-            
-            # Clean up: stop the AI if it tries to generate the next "User:" line itself
-            ai_response = new_response.split("User:")[0].split("AI:")[0].strip()
-            
-            # Fallback if the cleaning removed everything
-            if not ai_response:
-                ai_response = "I see! Tell me more."
-                
-            st.markdown(ai_response)
-            
-    # Add assistant response to chat history
-    st.session_state.messages.append({"role": "assistant", "content": ai_response})
 
+        try:
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a helpful AI assistant. "
+                        "Answer clearly and concisely."
+                    )
+                }
+            ]
+
+            messages.extend(st.session_state.messages)
+
+            response = client.chat_completion(
+                messages=messages,
+                max_tokens=500,
+                temperature=0.7
+            )
+
+            answer = response.choices[0].message.content
+
+            st.markdown(answer)
+
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": answer
+                }
+            )
+
+        except Exception as e:
+            st.error(f"Error communicating with Hugging Face: {e}")
+
+
+# ---------------------------------------------------------
+# Sidebar
+# ---------------------------------------------------------
+with st.sidebar:
+
+    st.header("Chatbot Settings")
+
+    st.write("**Model**")
+    st.code(MODEL)
+
+    if st.button("🗑️ Clear conversation"):
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": "Hello! How can I help you today?"
+            }
+        ]
+
+        st.rerun()
