@@ -1,37 +1,37 @@
 import streamlit as st
 from transformers import pipeline
-import pandas as pd
 
-# 1. Load the Hugging Face emotion classifier
-# This downloads a model trained to detect emotions (joy, sadness, anger, fear, etc.)
-@st.cache_resource  # Keeps the model in memory so it doesn't reload every time
-def load_model():
-    return pipeline("text-classification", model="bhadresh-savani/distilbert-base-uncased-emotion", top_k=None)
+# 1. Load a lightweight text generator (GPT-2 is small and fast for laptops)
+@st.cache_resource
+def load_text_gen():
+    return pipeline("text-generation", model="gpt2")
 
-classifier = load_model()
+generator = load_text_gen()
 
 # 2. App UI
-st.title("😊 Happiness & Emotion Detector")
-st.write("Type how your day went, and the AI will analyze your emotions!")
+st.title("📚 AI Storybook Generator")
+st.write("Start a story, and let the AI finish it!")
 
-user_text = st.text_area("How are you feeling today?", "I had a wonderful day today and accomplished a lot!")
+# Prompt input
+prompt = st.text_input("Story Starter:", "Once upon a time, a small blue dragon discovered a...")
 
-if st.button("Analyze Emotion"):
-    if user_text.strip() == "":
-        st.warning("Please type something first!")
-    else:
-        # 3. Run the model
-        with st.spinner("Analyzing text..."):
-            results = classifier(user_text)[0]
+# Sidebar settings to teach students about AI hyperparameters
+st.sidebar.header("AI Settings")
+story_length = st.sidebar.slider("Story Length (Words)", 50, 200, 100)
+creativity = st.sidebar.slider("Creativity (Temperature)", 0.6, 1.2, 0.8)
+
+if st.button("Generate Story"):
+    with st.spinner("Writing the next chapter..."):
+        # 3. Generate text
+        output = generator(
+            prompt, 
+            max_new_tokens=story_length, 
+            temperature=creativity, 
+            do_sample=True
+        )
         
-        # 4. Process and display results
-        # Format the data for a nice Streamlit bar chart
-        emotions = [res['label'] for res in results]
-        scores = [res['score'] for res in results]
-        df = pd.DataFrame({"Score": scores}, index=emotions)
+        story_text = output[0]['generated_text']
         
-        # Find the dominant emotion
-        top_emotion = results[0]['label']
-        
-        st.success(f"Primary Emotion Detected: **{top_emotion.capitalize()}**")
-        st.bar_chart(df)
+        # 4. Display result in a nice box
+        st.subheader("Your AI Masterpiece:")
+        st.info(story_text)
