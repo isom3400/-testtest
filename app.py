@@ -1,37 +1,58 @@
 import streamlit as st
 from transformers import pipeline
 
-# 1. Load a lightweight text generator (GPT-2 is small and fast for laptops)
+# 1. Load the conversational pipeline (optimized for Streamlit Cloud)
 @st.cache_resource
-def load_text_gen():
-    return pipeline("text-generation", model="gpt2")
+def load_chatbot():
+    # Blenderbot is a great, lightweight open-source conversational model
+    return pipeline("conversational", model="facebook/blenderbot-400M-distill")
 
-generator = load_text_gen()
+chatbot = load_chatbot()
 
-# 2. App UI
-st.title("📚 AI Storybook Generator")
-st.write("Start a story, and let the AI finish it!")
+# 2. Initialize Chat History
+# Streamlit reruns the whole script on every input, so we use st.session_state 
+# to keep memory of the conversation, exactly like ChatGPT.
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# Prompt input
-prompt = st.text_input("Story Starter:", "Once upon a time, a small blue dragon discovered a...")
+# 3. App UI Layout
+st.title("🤖 Your AI Companion")
+st.write("Talk to this open-source AI chatbot! It remembers what you say during the session.")
 
-# Sidebar settings to teach students about AI hyperparameters
-st.sidebar.header("AI Settings")
-story_length = st.sidebar.slider("Story Length (Words)", 50, 200, 100)
-creativity = st.sidebar.slider("Creativity (Temperature)", 0.6, 1.2, 0.8)
+# Display past chat messages from history on app rerun
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-if st.button("Generate Story"):
-    with st.spinner("Writing the next chapter..."):
-        # 3. Generate text
-        output = generator(
-            prompt, 
-            max_new_tokens=story_length, 
-            temperature=creativity, 
-            do_sample=True
-        )
-        
-        story_text = output[0]['generated_text']
-        
-        # 4. Display result in a nice box
-        st.subheader("Your AI Masterpiece:")
-        st.info(story_text)
+# 4. Accept User Input
+if user_input := st.chat_input("Say something to the AI..."):
+    # Display user message in chat message container
+    with st.chat_message("user"):
+        st.markdown(user_input)
+    
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": user_input})
+
+    # 5. Generate AI Response
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            # Hugging Face Conversational pipeline needs a specific structure
+            from transformers import Conversation
+            
+            # Reconstruct the conversation history for the model
+            conversation = Conversation()
+            for msg in st.session_state.messages:
+                if msg["role"] == "user":
+                    conversation.add_user_input(msg["content"])
+                else:
+                    conversation.mark_processed() # Marks the previous turn as done
+            
+            # Send the conversation history to the model
+            updated_conversation = chatbot(conversation)
+            
+            # Extract the newest response from the AI
+            ai_response = updated_conversation.generated_responses[-1]
+            st.markdown(ai_response)
+            
+    # Add assistant response to chat history
+    st.session_state.messages.append({"role": "assistant", "content": ai_response})
