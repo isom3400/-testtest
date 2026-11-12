@@ -1,54 +1,28 @@
-from PIL import Image
-from transformers import pipeline
+# business_app.py
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 
-def classify_happiness(image_path: str):
-    """
-    Loads an image, runs it through a Hugging Face ViT model fine-tuned 
-    for emotion recognition, and checks for 'happy' or 'happiness'.
-    """
-    print("Loading emotion classification model...")
-    # Using a Vision Transformer (ViT) fine-tuned on facial expressions / emotions
-    classifier = pipeline(
-        task="image-classification", 
-        model="dima806/facial_emotions_image_detection"
-    )
-    
-    print(head_up := f"Analyzing image: {image_path}...")
-    try:
-        img = Image.open(image_path).convert("RGB")
-    except FileNotFoundError:
-        print(f"Error: The file '{image_path}' could not be found.")
-        return
-    except Exception as e:
-        print(f"Error loading image: {e}")
-        return
+# Title of the app
+st.title("Business Data Dashboard")
 
-    # Run inference
-    results = classifier(img)
-    
-    print("\n--- Emotion Classification Results ---")
-    happy_detected = False
-    
-    for prediction in results:
-        label = prediction['label'].lower()
-        score = prediction['score']
-        print(f"Label: {prediction['label']:<15} Confidence: {score:.2%}")
-        
-        # Check if the primary detected emotion is happy
-        if 'happy' in label or 'happiness' in label:
-            if score > 0.5: # 50% threshold
-                happy_detected = True
-                happy_score = score
+# Introduction text
+st.write("This dashboard helps visualize sales data over time.")
 
-    print("--------------------------------------")
-    if happy_detected:
-        print(f"✅ Outcome: The subject appears HAPPY (Confidence: {happy_score:.2%})")
-    else:
-        print("❌ Outcome: Happiness is not the dominant emotion detected.")
+# Sample data
+date_rng = pd.date_range(start='1/1/2023', end='12/31/2023', freq='ME')
+df = pd.DataFrame(date_rng, columns=['date'])
+df['sales'] = np.random.randint(100, 500, size=(len(date_rng)))
 
-if __name__ == "__main__":
-    # Replace with the path to your local image file
-    image_to_test = "happy_face.jpg" 
-    
-    classify_happiness(image_to_test)
+# Data visualization with Streamlit
+st.subheader("Monthly Sales Data")
+st.line_chart(df.set_index('date'))
 
+# Adding a slider for user input
+sales_threshold = st.slider("Sales threshold", 100, 500, 300)
+
+# Filtering and displaying data based on user input
+filtered_data = df[df['sales'] >= sales_threshold]
+st.write(f"Months with sales above {sales_threshold}")
+st.write(filtered_data)
