@@ -16,6 +16,11 @@ date_rng = pd.date_range(start='1/1/2023', end='12/31/2023', freq='ME')
 df = pd.DataFrame(date_rng, columns=['date'])
 df['sales'] = np.random.randint(100, 500, size=(len(date_rng)))
 
+st.write(df)
+
+
+
+
 # Data visualization with Streamlit
 st.subheader("Monthly Sales Data")
 st.line_chart(df.set_index('date'))
