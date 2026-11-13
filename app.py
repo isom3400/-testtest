@@ -8,8 +8,8 @@ st.title("📊 Interactive Sales Dashboard")
 st.write("Adjust the controls in the sidebar to update the chart and data.")
 
 # 2. Sidebar Inputs
-st.sidebar.header("Filter Options ################################")
-num_days = st.sidebar.slider("Number of days12343", min_value=7, max_value=90, value=30)
+st.sidebar.header("Filter Options")
+num_days = st.sidebar.slider("Number of days456456456", min_value=7, max_value=90, value=30)
 category = st.sidebar.selectbox("Product Category", ["Electronics", 
                                                      "Clothing", 
                                                      "Home Goods",
